@@ -1,7 +1,4 @@
 Parameters:
-  NameOfService:
-    Description: "The name of the service this stack is to be used for."
-    Type: Interview 
   KeyName:
     Description: Name of an existing EC2 KeyPair to enable SSH access into the server
     Type: AWS::EC2::KeyPair::KeyName
