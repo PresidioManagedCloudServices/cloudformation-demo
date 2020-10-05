@@ -1,7 +1,13 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "This is a Interview Demo Template"
 Parameters:
   KeyName:
     Description: Name of an existing EC2 KeyPair to enable SSH access into the server
     Type: AWS::EC2::KeyPair::KeyName
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+  SubnetId:
+    Type: AWS::EC2::Subnet::Id
 Mappings:
   RegionMap:
     us-east-1:
@@ -14,7 +20,49 @@ Mappings:
       AMI: ami-e2adf99e
     ap-southeast-2:
       AMI: ami-43874721
-Resources:
+Resources: 
+  KMS:
+    Type: "AWS::KMS::Key"
+    Properties:
+      Description: String
+      Enabled: Boolean
+      EnableKeyRotation: "True"
+      KeyPolicy: '131072'
+      KeyUsage: String
+      PendingWindowInDays: Integer
+    Type: AWS::SecretsManager::Secret
+    Properties: 
+      Description: String
+      GenerateSecretString: GenerateSecretString
+      KmsKeyId: !Ref KMS 
+      Name: String
+      SecretString: String
+  IAMRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+              - ec2.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+              - 'sts:S
+      Policies:
+        - PolicyName: EC2Role
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: '*'
+                Resource: '*'
+  IAMInstanceProfile:
+    Type: 'AWS::IAM::InstanceProfile'
+    Properties:
+      Roles:
+        - !Ref IAMRole
   Ec2Instance:
     Type: 'AWS::EC2::Instance'
     Properties:
@@ -26,21 +74,19 @@ Resources:
         - AMI
       SecurityGroups: 
         - !Ref MySecurityGroup
-      Tags:
-        - Key: "CFM Keypair"
-          Value: !Ref NameOfService
       KeyName: !Ref KeyName
   MySecurityGroup:
     Type: 'AWS::EC2::SecurityGroup'
     Properties:
-      GroupDescription: Enable https access via port 80
+      GroupDescription: Enable Https and SSH access only
       SecurityGroupIngress:
-        - IpProtocol: https
-          FromPort: '80'
-          ToPort:  '80'
-          CidrIp: 0.0.0.0/0
-      SecurityGroupEgress:
-        - IpProtocol: https
-          FromPort: '80'
-          ToPort:  '80'
-          CidrIp: 0.0.0.0/0
+        - IpProtocol: https,ssh
+          FromPort: 80,22
+          ToPort: 80,22
+          SecurityGroupEgress:
+        - IpProtocol: "-1"
+          CidrIP: 0.0.0.0/0
+      UserData: !Base64 |
+      #!/bin/bash -ex
+      # put your script here
+:
