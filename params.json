@@ -1,0 +1,18 @@
+[
+  {
+    "ParameterKey": "NameOfService",
+    "ParameterValue": "Interview Demo Ec2"
+  },
+  {
+    "ParameterKey": "KeyName",
+    "ParameterValue": "AWS::EC2::KeyPair::KeyName"
+  },
+  {
+    "ParameterKey": "VPC",
+    "ParameterValue": "AWS::EC2::VPC::Id"
+  },
+  {
+    "ParameterKey": "Subnet",
+    "ParameterValue": "AWS::EC2::Subnet::Id"
+  }
+]
