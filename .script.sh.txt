@@ -1,0 +1,18 @@
+#!/bin/bash
+
+STACK_NAME=$1
+
+if [ -z "$1" ]
+  then
+    echo "No STACK_NAME argument supplied"
+    exit 1
+fi
+
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+
+echo "Stack Creation..."
+STACK_ID=$(aws cloudformation create-stack --stack-name ${STACK_NAME} --template-body file//${DIR}/IntEc2_Main.yml --parameters ParameterKey=NameOfService,ParameterValue=Interview Demo Ec2 / ParameterKey=KeyName,ParameterValue=AWS::EC2::KeyPair::KeyName ParameterKey=VPC,ParameterValue=AWS::EC2::VPC::Id  ParameterKey=Subnet,ParameterValue=AWS::EC2::Subnet::Id 
+
+aws cloudformation wait stack-create-complete  --stack-name ${STACK_ID}
+aws cloudformation describe-stacks --stack-name ${STACK_ID} 

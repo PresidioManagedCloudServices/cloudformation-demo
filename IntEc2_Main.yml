@@ -1,0 +1,186 @@
+
+AWSTemplateFormatVersion: 2010-09-09
+Parameters:
+  NameOfService:
+    Description: "This Stack is For "
+    Type: String
+  KeyName:
+    Description: Name of an existing EC2 KeyPair to enable SSH access into the server
+    Type: AWS::EC2::KeyPair::KeyName
+  VPC:
+    Description: Get VPC for EC2Instance 
+    Type: AWS::EC2::VPC::Id  
+  Subnet:
+    Description: Choose Instance Subnet 
+    Type: AWS::EC2::Subnet::Id
+Mappings:
+  RegionMap:
+    us-east-1:
+      AMI: ami-1853ac65
+    us-west-1:
+      AMI: ami-bf5540df
+    eu-west-1:
+      AMI: ami-3bfab942
+    ap-southeast-1:
+      AMI: ami-e2adf99e
+    ap-southeast-2:
+      AMI: ami-43874721    
+Resources:
+  KMS: 
+    Type: AWS::KMS::Key
+    Properties:
+      Description: "Creating KMS-CMK Symmetric "
+      Enabled: 'true'
+      EnableKeyRotation: 'true'  
+      KeyPolicy:
+        Version: 2012-10-17
+        Statement:
+          Sid: Enable IAM USer Permissions 
+          Effect: Allow
+          Principal:
+           AWS:
+            - Fn::Sub: "arn:aws:iam::${AWS::AccountId}:root"
+          Action: 'kms:*'
+          Resource:  '*'
+      KeyUsage: ENCRYPT_DECRYPT    
+      Tags:
+        - Key: "Name"
+          Value: Encrypted KMS 
+  KMSAlias:
+    Type: "AWS::KMS::Alias"
+    Properties:
+      AliasName: alias/DemoKMSKey
+      TargetKeyId: 
+         Ref: KMS 
+  SMS:
+    Type: 'AWS::SecretsManager::Secret'
+    Properties:
+      Description: "Randomly generated Secret."
+      GenerateSecretString:
+        SecretStringTemplate: '{"username": "cliuser"}'
+        GenerateStringKey: "password"
+        PasswordLength: 30
+        ExcludeCharacters: '"@/\'
+      KmsKeyId: !Ref KMS
+      Tags: 
+        - Key: Name 
+          Value: PresidioDemo 
+  EC2Instance:
+    Type: AWS::EC2::Instance
+    Metadata: 
+      AWS::CloudFormation::Init:
+        config: 
+          packages: 
+            yum:
+              httpd: []
+              php: []
+          files: 
+            /var/www/html/index.php:
+              content: !Sub |
+                <?php print "This is My Interview Demo! "; ?>
+                <?php print "$now" "Current date:$now"; ?>
+          services: 
+            sysvinit:
+              httpd:
+                enabled: true
+                ensureRunning: true
+    Properties:
+      InstanceType: t2.micro
+      ImageId:
+        Fn::FindInMap:
+        - RegionMap
+        - !Ref AWS::Region
+        - AMI
+      SecurityGroupIds:
+        - !Ref MySecurityGroup
+      Tags:
+        - Key: Name
+          Value: !Ref NameOfService
+      KeyName: !Ref KeyName
+      IamInstanceProfile: !Ref InstanceProfile 
+      UserData:
+        'Fn::Base64': 
+          !Sub |
+            #!/bin/bash -xe            
+            # Ensure AWS CFN Bootstrap is the latest
+            yum install -y aws-cfn-bootstrap
+            # Install the files and packages from the metadata
+            /opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource EC2Instance  --region ${AWS::Region}
+            # Echo the Secret Key to a location # This wont work
+             #/opt-aws/bin/cfn-get-metadata -v --secret-key $(AWS::AWS::SecretsManager::Secret)  --resource SMS
+             #/bin/echo "Secret Manager Secret: $"          >> /var/log/secret.txt 
+             
+  IAMRole:          
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument: 
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+              - ec2.amazonaws.com
+            Action:
+              - sts:AssumeRole 
+      Path: "/"
+  RolePolicies:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: Ec2Policy
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Action: '*'
+          Resource: '*'
+      Roles:
+      - !Ref IAMRole     
+
+
+  InstanceProfile:
+    Type: 'AWS::IAM::InstanceProfile'
+    Properties:
+      Path: "/"
+      Roles:
+        - !Ref IAMRole      
+  S3Bucket:
+    Type: 'AWS::S3::Bucket'
+    Properties:
+      AccessControl: PublicRead
+      WebsiteConfiguration:
+          IndexDocument: index.html
+          ErrorDocument: error.html
+    DeletionPolicy: Retain     
+  MySecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Open Ports 22 and 80
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: '22'
+        ToPort: '22'
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: tcp
+        FromPort: '80'
+        ToPort: '80'
+        CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name 
+          Value: Demo Security Group 
+Outputs:
+  Website:
+    Description: The Public DNS for the EC2 Instance
+    Value: !Sub 'http://${EC2Instance.PublicDnsName}'
+  WebsiteURL:
+    Value: !GetAtt 
+      - S3Bucket
+      - WebsiteURL
+    Description: URL for Website on S3
+  S3BucketSecureURL:
+    Value: !Join 
+      - ''
+      - - 'https://'
+        - !GetAtt 
+          - S3Bucket
+          - DomainName
+    Description: S3 Bucket Name    
